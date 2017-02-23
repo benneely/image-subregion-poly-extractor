@@ -81,7 +81,11 @@ class Application(tkinter.Frame):
             pady=PAD_MEDIUM
         )
 
-        self.canvas = tkinter.Canvas(canvas_frame, cursor="tcross")
+        self.canvas = tkinter.Canvas(
+            canvas_frame,
+            cursor="tcross",
+            takefocus=1
+        )
 
         self.scrollbar_v = tkinter.Scrollbar(
             canvas_frame,
@@ -106,7 +110,6 @@ class Application(tkinter.Frame):
         self.scrollbar_h.grid(row=1, column=0, sticky=tkinter.E + tkinter.W)
 
         # setup some button and key bindings
-        self.canvas.bind("<Enter>", self.canvas.focus_set())
         self.canvas.bind("<ButtonPress-1>", self.grab_handle)
         self.canvas.bind("<B1-Motion>", self.move_handle)
         self.canvas.bind("<ButtonRelease-1>", self.release_handle)
@@ -135,6 +138,10 @@ class Application(tkinter.Frame):
         self.pack()
 
     def draw_point(self, event):
+        # don't do anything unless the canvas has focus
+        if not isinstance(self.focus_get(), tkinter.Canvas):
+            return
+
         cur_x = self.canvas.canvasx(event.x)
         cur_y = self.canvas.canvasy(event.y)
 
@@ -166,6 +173,9 @@ class Application(tkinter.Frame):
         )
 
     def grab_handle(self, event):
+        # button 1 was pressed so make sure canvas has focus
+        self.canvas.focus_set()
+
         self.selected_handle = None
 
         # have to translate our event position to our current panned location
@@ -226,6 +236,8 @@ class Application(tkinter.Frame):
 
     def clear_rectangles(self):
         self.canvas.delete("rect")
+        self.canvas.delete("poly")
+        self.canvas.delete("handle")
         self.points = OrderedDict()
 
     # noinspection PyUnusedLocal
