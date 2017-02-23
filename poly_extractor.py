@@ -121,7 +121,6 @@ class Application(tkinter.Frame):
         # save our sub-region snippet
         self.master.bind("<Return>", self.extract_region)
         self.master.bind("<p>", self.draw_point)
-        self.master.bind("<g>", self.draw_polygon)
 
         self.points = OrderedDict()
         self.selected_handle = None
