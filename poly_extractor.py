@@ -142,6 +142,37 @@ class Application(tk.Frame):
             pady=PAD_SMALL
         )
 
+        region_list_frame = tk.Frame(
+            bottom_frame,
+            bg=BACKGROUND_COLOR,
+            highlightcolor=HIGHLIGHT_COLOR,
+            highlightbackground=BORDER_COLOR,
+            highlightthickness=1
+        )
+        region_list_frame.pack(
+            fill=tk.Y,
+            expand=False,
+            anchor=tk.N,
+            side='left',
+            padx=PAD_MEDIUM,
+            pady=PAD_MEDIUM
+        )
+
+        region_scroll_bar = ttk.Scrollbar(region_list_frame, orient='vertical')
+        self.region_list_box = tk.Listbox(
+            region_list_frame,
+            yscrollcommand=region_scroll_bar.set,
+            relief='flat',
+            borderwidth=0,
+            highlightthickness=0,
+            selectbackground=HIGHLIGHT_COLOR,
+            selectforeground='#ffffff'
+        )
+        self.region_list_box.bind('<<ListboxSelect>>', self.select_region)
+        region_scroll_bar.config(command=self.region_list_box.yview)
+        region_scroll_bar.pack(side='right', fill='y')
+        self.region_list_box.pack(fill='both', expand=True)
+        
         # the canvas frame's contents will use grid b/c of the double
         # scrollbar (they don't look right using pack), but the canvas itself
         # will be packed in its frame
@@ -404,6 +435,16 @@ class Application(tk.Frame):
         self.canvas.config(scrollregion=(0, 0, height, width))
         self.tk_image = PIL.ImageTk.PhotoImage(self.image)
         self.canvas.create_image(0, 0, anchor=tk.NW, image=self.tk_image)
+
+        # clear the list box
+        self.region_list_box.delete(0, tk.END)
+
+        for region in self.img_region_lut[current_f_sel]['regions']:
+            self.region_list_box.insert(tk.END, region['label'])
+
+    # noinspection PyUnusedLocal
+    def select_region(self, event):
+        pass
 
     def choose_files(self):
         self.canvas.delete("poly")
