@@ -1,14 +1,24 @@
-import tkinter
-from tkinter import filedialog
-from PIL import ImageTk
+import tkinter as tk
+import ttkthemes as themed_tk
+from tkinter import filedialog, ttk
 import PIL.Image
+import PIL.ImageTk
 import os
-import re
+import json
+from operator import itemgetter
 from collections import OrderedDict
 import numpy as np
-import cv2
+# weird import style to un-confuse PyCharm
+try:
+    from cv2 import cv2
+except ImportError:
+    import cv2
 
 BACKGROUND_COLOR = '#ededed'
+BORDER_COLOR = '#bebebe'
+HIGHLIGHT_COLOR = '#5294e2'
+ROW_ALT_COLOR = '#f3f6fa'
+
 HANDLE_RADIUS = 4  # not really a radius, just half a side length
 
 WINDOW_WIDTH = 580
@@ -20,80 +30,145 @@ PAD_LARGE = 8
 PAD_EXTRA_LARGE = 14
 
 
-class Application(tkinter.Frame):
+class Application(tk.Frame):
 
     def __init__(self, master):
 
-        tkinter.Frame.__init__(self, master=master)
+        tk.Frame.__init__(self, master=master)
 
-        self.image_name = None
-        self.image_dir = None
+        self.images = None
+        self.img_region_lut = None
+        self.region_labels = None
+        self.base_dir = None
 
         self.master.minsize(width=WINDOW_WIDTH, height=WINDOW_HEIGHT)
+        self.master.config(bg=BACKGROUND_COLOR)
 
-        file_chooser_frame = tkinter.Frame(self.master, bg=BACKGROUND_COLOR)
-        file_chooser_frame.pack(
-            fill=tkinter.X,
-            expand=False,
-            anchor=tkinter.N,
+        main_frame = tk.Frame(self.master, bg=BACKGROUND_COLOR)
+        main_frame.pack(
+            fill='both',
+            expand=True,
+            anchor='n',
             padx=PAD_MEDIUM,
             pady=PAD_MEDIUM
         )
 
-        file_chooser_button = tkinter.Button(
+        file_chooser_frame = tk.Frame(main_frame, bg=BACKGROUND_COLOR)
+        file_chooser_frame.pack(
+            fill=tk.X,
+            expand=False,
+            anchor=tk.N,
+            padx=PAD_MEDIUM,
+            pady=PAD_MEDIUM
+        )
+
+        bottom_frame = tk.Frame(main_frame, bg=BACKGROUND_COLOR)
+        bottom_frame.pack(
+            fill='both',
+            expand=True,
+            anchor='n',
+            padx=PAD_MEDIUM,
+            pady=PAD_SMALL
+        )
+
+        file_chooser_button_frame = tk.Frame(
             file_chooser_frame,
-            text='Choose Image File...',
+            bg=BACKGROUND_COLOR
+        )
+
+        file_chooser_button = ttk.Button(
+            file_chooser_button_frame,
+            text='Import Regions JSON',
             command=self.choose_files
         )
-        file_chooser_button.pack(side=tkinter.LEFT)
+        file_chooser_button.pack(side=tk.LEFT)
 
-        clear_regions_button = tkinter.Button(
-            file_chooser_frame,
+        clear_regions_button = ttk.Button(
+            file_chooser_button_frame,
             text='Clear Regions',
             command=self.clear_rectangles
         )
-        clear_regions_button.pack(side=tkinter.RIGHT, anchor=tkinter.N)
+        clear_regions_button.pack(side=tk.RIGHT, anchor=tk.N)
 
-        self.snip_string = tkinter.StringVar()
-        snip_label = tkinter.Label(
-            file_chooser_frame,
-            text="Snip Label: ",
-            bg=BACKGROUND_COLOR
+        self.snip_string = tk.StringVar()
+        snip_label = ttk.Label(
+            file_chooser_button_frame,
+            text="Snip Label: "
         )
-        snip_label_entry = tkinter.Entry(
-            file_chooser_frame,
+        snip_label.config(background=BACKGROUND_COLOR)
+        snip_label_entry = ttk.Entry(
+            file_chooser_button_frame,
             textvariable=self.snip_string
         )
-        snip_label_entry.pack(side=tkinter.RIGHT)
-        snip_label.pack(side=tkinter.RIGHT)
+        snip_label_entry.pack(side=tk.RIGHT)
+        snip_label.pack(side=tk.RIGHT)
+
+        file_chooser_button_frame.pack(
+            anchor='n',
+            fill='x',
+            expand=False,
+            padx=PAD_MEDIUM,
+            pady=PAD_MEDIUM
+        )
+
+        file_list_frame = tk.Frame(
+            file_chooser_frame,
+            bg=BACKGROUND_COLOR,
+            highlightcolor=HIGHLIGHT_COLOR,
+            highlightbackground=BORDER_COLOR,
+            highlightthickness=1
+        )
+        file_scroll_bar = ttk.Scrollbar(file_list_frame, orient='vertical')
+        self.file_list_box = tk.Listbox(
+            file_list_frame,
+            height=4,
+            yscrollcommand=file_scroll_bar.set,
+            relief='flat',
+            borderwidth=0,
+            highlightthickness=0,
+            selectbackground=HIGHLIGHT_COLOR,
+            selectforeground='#ffffff'
+        )
+        self.file_list_box.bind('<<ListboxSelect>>', self.select_file)
+        file_scroll_bar.config(command=self.file_list_box.yview)
+        file_scroll_bar.pack(side='right', fill='y')
+        self.file_list_box.pack(fill='x', expand=True)
+
+        file_list_frame.pack(
+            fill='x',
+            expand=False,
+            padx=PAD_MEDIUM,
+            pady=PAD_SMALL
+        )
 
         # the canvas frame's contents will use grid b/c of the double
         # scrollbar (they don't look right using pack), but the canvas itself
         # will be packed in its frame
-        canvas_frame = tkinter.Frame(self.master, bg=BACKGROUND_COLOR)
+        canvas_frame = tk.Frame(bottom_frame, bg=BACKGROUND_COLOR)
         canvas_frame.grid_rowconfigure(0, weight=1)
         canvas_frame.grid_columnconfigure(0, weight=1)
         canvas_frame.pack(
-            fill=tkinter.BOTH,
+            fill=tk.BOTH,
             expand=True,
-            anchor=tkinter.N,
+            anchor=tk.N,
+            side='right',
             padx=PAD_MEDIUM,
             pady=PAD_MEDIUM
         )
 
-        self.canvas = tkinter.Canvas(
+        self.canvas = tk.Canvas(
             canvas_frame,
             cursor="tcross",
             takefocus=1
         )
 
-        self.scrollbar_v = tkinter.Scrollbar(
+        self.scrollbar_v = ttk.Scrollbar(
             canvas_frame,
-            orient=tkinter.VERTICAL
+            orient=tk.VERTICAL
         )
-        self.scrollbar_h = tkinter.Scrollbar(
+        self.scrollbar_h = ttk.Scrollbar(
             canvas_frame,
-            orient=tkinter.HORIZONTAL
+            orient=tk.HORIZONTAL
         )
         self.scrollbar_v.config(command=self.canvas.yview)
         self.scrollbar_h.config(command=self.canvas.xview)
@@ -104,10 +179,10 @@ class Application(tkinter.Frame):
         self.canvas.grid(
             row=0,
             column=0,
-            sticky=tkinter.N + tkinter.S + tkinter.E + tkinter.W
+            sticky=tk.N + tk.S + tk.E + tk.W
         )
-        self.scrollbar_v.grid(row=0, column=1, sticky=tkinter.N + tkinter.S)
-        self.scrollbar_h.grid(row=1, column=0, sticky=tkinter.E + tkinter.W)
+        self.scrollbar_v.grid(row=0, column=1, sticky=tk.N + tk.S)
+        self.scrollbar_h.grid(row=1, column=0, sticky=tk.E + tk.W)
 
         # setup some button and key bindings
         self.canvas.bind("<ButtonPress-1>", self.grab_handle)
@@ -138,7 +213,7 @@ class Application(tkinter.Frame):
 
     def draw_point(self, event):
         # don't do anything unless the canvas has focus
-        if not isinstance(self.focus_get(), tkinter.Canvas):
+        if not isinstance(self.focus_get(), tk.Canvas):
             return
 
         cur_x = self.canvas.canvasx(event.x)
@@ -244,16 +319,6 @@ class Application(tkinter.Frame):
         if len(self.points) < 3:
             return
 
-        output_dir = "/".join(
-            [
-                self.image_dir,
-                self.snip_string.get().strip()
-            ]
-        )
-
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-
         contour = np.array(list(self.points.values()), dtype='int')
         b_rect = cv2.boundingRect(contour)
 
@@ -267,31 +332,6 @@ class Application(tkinter.Frame):
 
         region = self.image.crop((x1, y1, x2, y2))
         poly_mask = poly_mask[y1:y2, x1:x2]
-
-        match = re.search('(.+)\.(.+)$', self.image_name)
-        output_filename = "".join(
-            [
-                match.groups()[0],
-                '_',
-                str(x1),
-                ',',
-                str(y1)
-            ]
-        )
-        mask_filename = "_".join(
-            [
-                output_filename,
-                'mask'
-            ]
-        )
-        output_filename = ".".join([output_filename, match.groups()[1]])
-        mask_filename = ".".join([mask_filename, match.groups()[1]])
-
-        output_file_path = "/".join([output_dir, output_filename])
-        mask_file_path = "/".join([output_dir, mask_filename])
-
-        region.save(output_file_path)
-        cv2.imwrite(mask_file_path, poly_mask)
 
         self.canvas.create_rectangle(
             x1,
@@ -307,6 +347,62 @@ class Application(tkinter.Frame):
         self.canvas.delete("handle")
         self.points = OrderedDict()
 
+    def load_regions_json(self, regions_file_path):
+        # Each image set directory will have a 'regions.json' file. This regions
+        # file has keys of the image file names in the image set, and the value
+        # for each image is a list of segmented polygon regions.
+        # First, we will read in this file and get the file names for our images
+        regions_file = open(regions_file_path)
+        self.base_dir = os.path.dirname(regions_file_path)
+
+        regions_json = json.load(regions_file)
+        regions_file.close()
+
+        # output will be a dictionary regions, where the
+        # polygon points dict is a numpy array.
+        # The keys are the image names
+        self.img_region_lut = {}
+
+        # clear the list box and the relevant file_list keys
+        self.file_list_box.delete(0, tk.END)
+
+        for image_name, sub_regions in regions_json.items():
+            self.file_list_box.insert(tk.END, image_name)
+
+            self.img_region_lut[image_name] = {
+                'hsv_img': None,
+                'img_path': os.path.join(self.base_dir, image_name),
+                'regions': []
+            }
+
+            for region in sub_regions:
+                points = np.empty((0, 2), dtype='int')
+
+                for point in sorted(region['points'], key=itemgetter('order')):
+                    points = np.append(points, [[point['x'], point['y']]], axis=0)
+
+                self.img_region_lut[image_name]['regions'].append(
+                    {
+                        'label': region['anatomy'],
+                        'points': points
+                    }
+                )
+
+    # noinspection PyUnusedLocal
+    def select_file(self, event):
+        current_f_sel = self.file_list_box.selection_get()
+        selected_img_path = self.img_region_lut[current_f_sel]['img_path']
+        cv_img = cv2.imread(selected_img_path)
+
+        self.image = PIL.Image.fromarray(
+            cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB),
+            'RGB'
+        )
+        height, width = self.image.size
+        self.canvas.config(scrollregion=(0, 0, height, width))
+        self.tk_image = PIL.ImageTk.PhotoImage(self.image)
+        self.canvas.create_image(0, 0, anchor=tk.NW, image=self.tk_image)
+
     def choose_files(self):
         self.canvas.delete("poly")
         self.canvas.delete("handle")
@@ -317,20 +413,10 @@ class Application(tkinter.Frame):
         if selected_file is None:
             return
 
-        cv_img = cv2.imread(selected_file.name)
+        self.load_regions_json(selected_file.name)
 
-        self.image = PIL.Image.fromarray(
-            cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB),
-            'RGB'
-        )
-        height, width = self.image.size
-        self.canvas.config(scrollregion=(0, 0, height, width))
-        self.tk_image = ImageTk.PhotoImage(self.image)
-        self.canvas.create_image(0, 0, anchor=tkinter.NW, image=self.tk_image)
 
-        self.image_name = os.path.basename(selected_file.name)
-        self.image_dir = os.path.dirname(selected_file.name)
-
-root = tkinter.Tk()
+root = themed_tk.ThemedTk()
+root.set_theme('arc')
 app = Application(root)
 root.mainloop()
