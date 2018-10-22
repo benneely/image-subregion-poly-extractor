@@ -26,8 +26,6 @@ WINDOW_HEIGHT = 600
 
 PAD_SMALL = 2
 PAD_MEDIUM = 4
-PAD_LARGE = 8
-PAD_EXTRA_LARGE = 14
 
 
 class Application(tk.Frame):
@@ -36,10 +34,12 @@ class Application(tk.Frame):
 
         tk.Frame.__init__(self, master=master)
 
-        self.images = None
         self.img_region_lut = None
         self.region_labels = None
         self.base_dir = None
+        self.image_dims = None
+        self.current_img_name = None
+        self.tk_image = None
 
         self.master.minsize(width=WINDOW_WIDTH, height=WINDOW_HEIGHT)
         self.master.config(bg=BACKGROUND_COLOR)
@@ -238,18 +238,19 @@ class Application(tk.Frame):
         self.pan_start_x = None
         self.pan_start_y = None
 
-        self.image = None
-        self.tk_image = None
-
         self.pack()
 
-    def draw_point(self, event):
+    def draw_point(self, event, override_focus=False):
         # don't do anything unless the canvas has focus
-        if not isinstance(self.focus_get(), tk.Canvas):
+        if not isinstance(self.focus_get(), tk.Canvas) and not override_focus:
             return
 
-        cur_x = self.canvas.canvasx(event.x)
-        cur_y = self.canvas.canvasy(event.y)
+        if not override_focus:
+            cur_x = self.canvas.canvasx(event.x)
+            cur_y = self.canvas.canvasy(event.y)
+        else:
+            cur_x = event.x
+            cur_y = event.y
 
         r = self.canvas.create_rectangle(
             cur_x - HANDLE_RADIUS,
@@ -264,10 +265,9 @@ class Application(tk.Frame):
         self.points[r] = [cur_x, cur_y]
 
         if len(self.points) > 1:
-            self.draw_polygon(event)
+            self.draw_polygon()
 
-    # noinspection PyUnusedLocal
-    def draw_polygon(self, event):
+    def draw_polygon(self):
         self.canvas.delete("poly")
         self.canvas.create_polygon(
             sum(self.points.values(), []),
@@ -320,7 +320,7 @@ class Application(tk.Frame):
                 self.canvas.canvasx(event.x),
                 self.canvas.canvasy(event.y)
             ]
-            self.draw_polygon(event)
+            self.draw_polygon()
 
     def on_pan_button_press(self, event):
         self.canvas.config(cursor='fleur')
@@ -354,16 +354,10 @@ class Application(tk.Frame):
         contour = np.array(list(self.points.values()), dtype='int')
         b_rect = cv2.boundingRect(contour)
 
-        poly_mask = np.zeros(self.image.size, dtype=np.uint8)
-        cv2.drawContours(poly_mask, [contour], 0, 255, cv2.FILLED)
-
         x1 = b_rect[0]
         x2 = b_rect[0] + b_rect[2]
         y1 = b_rect[1]
         y2 = b_rect[1] + b_rect[3]
-
-        region = self.image.crop((x1, y1, x2, y2))
-        poly_mask = poly_mask[y1:y2, x1:x2]
 
         self.canvas.create_rectangle(
             x1,
@@ -423,28 +417,44 @@ class Application(tk.Frame):
     # noinspection PyUnusedLocal
     def select_file(self, event):
         current_sel = self.file_list_box.curselection()
-        current_f_sel = self.file_list_box.get(current_sel[0])
-        selected_img_path = self.img_region_lut[current_f_sel]['img_path']
-        cv_img = cv2.imread(selected_img_path)
+        self.current_img_name = self.file_list_box.get(current_sel[0])
+        img_path = self.img_region_lut[self.current_img_name]['img_path']
+        cv_img = cv2.imread(img_path)
 
-        self.image = PIL.Image.fromarray(
+        image = PIL.Image.fromarray(
             cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB),
             'RGB'
         )
-        height, width = self.image.size
+        self.tk_image = PIL.ImageTk.PhotoImage(image)
+        height, width = image.size
+        self.image_dims = (height, width)
         self.canvas.config(scrollregion=(0, 0, height, width))
-        self.tk_image = PIL.ImageTk.PhotoImage(self.image)
-        self.canvas.create_image(0, 0, anchor=tk.NW, image=self.tk_image)
+        self.canvas.create_image(
+            0,
+            0,
+            anchor=tk.NW,
+            image=self.tk_image
+        )
 
         # clear the list box
         self.region_list_box.delete(0, tk.END)
 
-        for region in self.img_region_lut[current_f_sel]['regions']:
+        for region in self.img_region_lut[self.current_img_name]['regions']:
             self.region_list_box.insert(tk.END, region['label'])
 
     # noinspection PyUnusedLocal
     def select_region(self, event):
-        pass
+        r_idx = self.region_list_box.curselection()
+        region = self.img_region_lut[self.current_img_name]['regions'][r_idx[0]]
+
+        self.canvas.delete("poly")
+        self.canvas.delete("handle")
+        self.points = OrderedDict()
+
+        for point in region['points']:
+            e = tk.Event()
+            e.x, e.y = point
+            self.draw_point(e, override_focus=True)
 
     def choose_files(self):
         self.canvas.delete("poly")
