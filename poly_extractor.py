@@ -121,6 +121,7 @@ class Application(tk.Frame):
         file_scroll_bar = ttk.Scrollbar(file_list_frame, orient='vertical')
         self.file_list_box = tk.Listbox(
             file_list_frame,
+            exportselection=False,
             height=4,
             yscrollcommand=file_scroll_bar.set,
             relief='flat',
@@ -390,7 +391,8 @@ class Application(tk.Frame):
 
     # noinspection PyUnusedLocal
     def select_file(self, event):
-        current_f_sel = self.file_list_box.selection_get()
+        current_sel = self.file_list_box.curselection()
+        current_f_sel = self.file_list_box.get(current_sel[0])
         selected_img_path = self.img_region_lut[current_f_sel]['img_path']
         cv_img = cv2.imread(selected_img_path)
 
