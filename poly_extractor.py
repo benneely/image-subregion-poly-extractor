@@ -43,6 +43,7 @@ class Application(tk.Frame):
 
         self.master.minsize(width=WINDOW_WIDTH, height=WINDOW_HEIGHT)
         self.master.config(bg=BACKGROUND_COLOR)
+        self.master.title("Segmentation Editor")
 
         main_frame = tk.Frame(self.master, bg=BACKGROUND_COLOR)
         main_frame.pack(
