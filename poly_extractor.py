@@ -38,7 +38,7 @@ class Application(tk.Frame):
         self.base_dir = None
         self.image_dims = None
         self.current_img_name = None
-        self.current_region_index = None
+        self.current_reg_idx = None
         self.tk_image = None
 
         self.master.minsize(width=WINDOW_WIDTH, height=WINDOW_HEIGHT)
@@ -94,7 +94,7 @@ class Application(tk.Frame):
         delete_region_button = ttk.Button(
             file_chooser_button_frame,
             text='Delete Region',
-            command=None
+            command=self.delete_region
         )
         delete_region_button.pack(side=tk.RIGHT, anchor=tk.N)
 
@@ -284,7 +284,7 @@ class Application(tk.Frame):
         new_points = np.array(list(self.points.values()), dtype=np.uint)
         self.img_region_lut[
             self.current_img_name
-        ][self.current_region_index]['points'] = new_points
+        ][self.current_reg_idx]['points'] = new_points
 
     def grab_handle(self, event):
         # button 1 was pressed so make sure canvas has focus
@@ -330,6 +330,12 @@ class Application(tk.Frame):
             ]
             self.draw_polygon()
 
+    def delete_region(self):
+        del self.img_region_lut[self.current_img_name][self.current_reg_idx]
+        self.region_list_box.delete(self.current_reg_idx)
+        self.current_reg_idx = None
+        self.clear_drawn_regions()
+
     def on_pan_button_press(self, event):
         self.canvas.config(cursor='fleur')
 
@@ -348,7 +354,7 @@ class Application(tk.Frame):
     def on_pan_button_release(self, event):
         self.canvas.config(cursor='tcross')
 
-    def clear_rectangles(self):
+    def clear_drawn_regions(self):
         self.canvas.delete("poly")
         self.canvas.delete("handle")
         self.points = OrderedDict()
@@ -438,15 +444,13 @@ class Application(tk.Frame):
     def select_region(self, event):
         r_idx = self.region_list_box.curselection()
         if len(r_idx) == 0:
-            self.current_region_index = None
+            self.current_reg_idx = None
             return
 
-        self.current_region_index = r_idx[0]
+        self.current_reg_idx = r_idx[0]
         region = self.img_region_lut[self.current_img_name][r_idx[0]]
 
-        self.canvas.delete("poly")
-        self.canvas.delete("handle")
-        self.points = OrderedDict()
+        self.clear_drawn_regions()
 
         for point in region['points']:
             e = tk.Event()
@@ -464,9 +468,7 @@ class Application(tk.Frame):
         self.canvas.yview_moveto((min_y - c_h) / self.image_dims[0])
 
     def choose_files(self):
-        self.canvas.delete("poly")
-        self.canvas.delete("handle")
-        self.points = OrderedDict()
+        self.clear_drawn_regions()
 
         selected_file = filedialog.askopenfile('r')
 
