@@ -451,10 +451,22 @@ class Application(tk.Frame):
         self.canvas.delete("handle")
         self.points = OrderedDict()
 
+        min_x = self.image_dims[1]
+        min_y = self.image_dims[0]
+
         for point in region['points']:
             e = tk.Event()
             e.x, e.y = point
+
+            if e.x < min_x:
+                min_x = e.x
+            if e.y < min_y:
+                min_y = e.y
+
             self.draw_point(e, override_focus=True)
+
+        self.canvas.xview_moveto((min_x - 20) / self.image_dims[1])
+        self.canvas.yview_moveto((min_y - 20) / self.image_dims[0])
 
     def choose_files(self):
         self.canvas.delete("poly")
