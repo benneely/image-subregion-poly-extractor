@@ -21,8 +21,8 @@ ROW_ALT_COLOR = '#f3f6fa'
 
 HANDLE_RADIUS = 4  # not really a radius, just half a side length
 
-WINDOW_WIDTH = 580
-WINDOW_HEIGHT = 600
+WINDOW_WIDTH = 860
+WINDOW_HEIGHT = 720
 
 PAD_SMALL = 2
 PAD_MEDIUM = 4
@@ -83,25 +83,26 @@ class Application(tk.Frame):
         )
         file_chooser_button.pack(side=tk.LEFT)
 
-        clear_regions_button = ttk.Button(
+        save_regions_button = ttk.Button(
             file_chooser_button_frame,
-            text='Clear Regions',
-            command=self.clear_rectangles
+            text='Save Regions JSON',
+            command=None
         )
-        clear_regions_button.pack(side=tk.RIGHT, anchor=tk.N)
+        save_regions_button.pack(side=tk.RIGHT, anchor=tk.N)
 
-        self.snip_string = tk.StringVar()
-        snip_label = ttk.Label(
+        delete_region_button = ttk.Button(
             file_chooser_button_frame,
-            text="Snip Label: "
+            text='Delete Region',
+            command=None
         )
-        snip_label.config(background=BACKGROUND_COLOR)
-        snip_label_entry = ttk.Entry(
+        delete_region_button.pack(side=tk.RIGHT, anchor=tk.N)
+
+        add_region_button = ttk.Button(
             file_chooser_button_frame,
-            textvariable=self.snip_string
+            text='Add Region',
+            command=None
         )
-        snip_label_entry.pack(side=tk.RIGHT)
-        snip_label.pack(side=tk.RIGHT)
+        add_region_button.pack(side=tk.RIGHT, anchor=tk.N)
 
         file_chooser_button_frame.pack(
             anchor='n',
@@ -161,6 +162,7 @@ class Application(tk.Frame):
         region_scroll_bar = ttk.Scrollbar(region_list_frame, orient='vertical')
         self.region_list_box = tk.Listbox(
             region_list_frame,
+            width=32,
             yscrollcommand=region_scroll_bar.set,
             relief='flat',
             borderwidth=0,
