@@ -39,6 +39,7 @@ class Application(tk.Frame):
         self.base_dir = None
         self.image_dims = None
         self.current_img_name = None
+        self.current_region_index = None
         self.tk_image = None
 
         self.master.minsize(width=WINDOW_WIDTH, height=WINDOW_HEIGHT)
@@ -280,6 +281,12 @@ class Application(tk.Frame):
             width=2
         )
 
+        # update region lookup table
+        new_points = np.array(list(self.points.values()), dtype=np.uint)
+        self.img_region_lut[
+            self.current_img_name
+        ]['regions'][self.current_region_index]['points'] = new_points
+
     def grab_handle(self, event):
         # button 1 was pressed so make sure canvas has focus
         self.canvas.focus_set()
@@ -419,6 +426,11 @@ class Application(tk.Frame):
     # noinspection PyUnusedLocal
     def select_region(self, event):
         r_idx = self.region_list_box.curselection()
+        if len(r_idx) == 0:
+            self.current_region_index = None
+            return
+
+        self.current_region_index = r_idx[0]
         region = self.img_region_lut[self.current_img_name]['regions'][r_idx[0]]
 
         self.canvas.delete("poly")
