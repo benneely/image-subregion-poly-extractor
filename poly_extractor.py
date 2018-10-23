@@ -229,7 +229,6 @@ class Application(tk.Frame):
         self.canvas.bind("<ButtonRelease-2>", self.on_pan_button_release)
 
         # save our sub-region snippet
-        self.master.bind("<Return>", self.extract_region)
         self.master.bind("<p>", self.draw_point)
 
         self.points = OrderedDict()
@@ -344,34 +343,6 @@ class Application(tk.Frame):
         self.canvas.config(cursor='tcross')
 
     def clear_rectangles(self):
-        self.canvas.delete("rect")
-        self.canvas.delete("poly")
-        self.canvas.delete("handle")
-        self.points = OrderedDict()
-
-    # noinspection PyUnusedLocal
-    def extract_region(self, event):
-        if len(self.points) < 3:
-            return
-
-        contour = np.array(list(self.points.values()), dtype='int')
-        b_rect = cv2.boundingRect(contour)
-
-        x1 = b_rect[0]
-        x2 = b_rect[0] + b_rect[2]
-        y1 = b_rect[1]
-        y2 = b_rect[1] + b_rect[3]
-
-        self.canvas.create_rectangle(
-            x1,
-            y1,
-            x2,
-            y2,
-            outline='#ff1493',
-            width=2,
-            tag='rect'
-        )
-
         self.canvas.delete("poly")
         self.canvas.delete("handle")
         self.points = OrderedDict()
