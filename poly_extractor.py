@@ -5,7 +5,6 @@ import PIL.Image
 import PIL.ImageTk
 import os
 import json
-from operator import itemgetter
 from collections import OrderedDict
 import numpy as np
 # weird import style to un-confuse PyCharm
@@ -88,7 +87,7 @@ class Application(tk.Frame):
         save_regions_button = ttk.Button(
             file_chooser_button_frame,
             text='Save Regions JSON',
-            command=None
+            command=self.save_regions_json
         )
         save_regions_button.pack(side=tk.RIGHT, anchor=tk.N)
 
@@ -285,7 +284,7 @@ class Application(tk.Frame):
         new_points = np.array(list(self.points.values()), dtype=np.uint)
         self.img_region_lut[
             self.current_img_name
-        ]['regions'][self.current_region_index]['points'] = new_points
+        ][self.current_region_index]['points'] = new_points
 
     def grab_handle(self, event):
         # button 1 was pressed so make sure canvas has focus
@@ -376,30 +375,42 @@ class Application(tk.Frame):
         for image_name, sub_regions in regions_json.items():
             self.file_list_box.insert(tk.END, image_name)
 
-            self.img_region_lut[image_name] = {
-                'hsv_img': None,
-                'img_path': os.path.join(self.base_dir, image_name),
-                'regions': []
-            }
+            self.img_region_lut[image_name] = []
 
             for region in sub_regions:
                 points = np.empty((0, 2), dtype='int')
 
-                for point in sorted(region['points'], key=itemgetter('order')):
-                    points = np.append(points, [[point['x'], point['y']]], axis=0)
+                for point in region['points']:
+                    points = np.append(points, [[point[0], point[1]]], axis=0)
 
-                self.img_region_lut[image_name]['regions'].append(
+                self.img_region_lut[image_name].append(
                     {
-                        'label': region['anatomy'],
+                        'label': region['label'],
                         'points': points
                     }
                 )
+
+    def save_regions_json(self):
+        save_file = filedialog.asksaveasfile(defaultextension=".json")
+        if save_file is None:
+            return
+
+        def my_converter(o):
+            if isinstance(o, np.ndarray):
+                return o.tolist()
+
+        json.dump(
+            self.img_region_lut,
+            save_file,
+            indent=2,
+            default=my_converter
+        )
 
     # noinspection PyUnusedLocal
     def select_file(self, event):
         current_sel = self.file_list_box.curselection()
         self.current_img_name = self.file_list_box.get(current_sel[0])
-        img_path = self.img_region_lut[self.current_img_name]['img_path']
+        img_path = os.path.join(self.base_dir, self.current_img_name)
         cv_img = cv2.imread(img_path)
 
         image = PIL.Image.fromarray(
@@ -420,7 +431,7 @@ class Application(tk.Frame):
         # clear the list box
         self.region_list_box.delete(0, tk.END)
 
-        for region in self.img_region_lut[self.current_img_name]['regions']:
+        for region in self.img_region_lut[self.current_img_name]:
             self.region_list_box.insert(tk.END, region['label'])
 
     # noinspection PyUnusedLocal
@@ -431,7 +442,7 @@ class Application(tk.Frame):
             return
 
         self.current_region_index = r_idx[0]
-        region = self.img_region_lut[self.current_img_name]['regions'][r_idx[0]]
+        region = self.img_region_lut[self.current_img_name][r_idx[0]]
 
         self.canvas.delete("poly")
         self.canvas.delete("handle")
