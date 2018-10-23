@@ -101,7 +101,7 @@ class Application(tk.Frame):
         add_region_button = ttk.Button(
             file_chooser_button_frame,
             text='Add Region',
-            command=None
+            command=self.new_region
         )
         add_region_button.pack(side=tk.RIGHT, anchor=tk.N)
 
@@ -330,6 +330,25 @@ class Application(tk.Frame):
             ]
             self.draw_polygon()
 
+    def new_region(self):
+        if self.current_reg_idx is None:
+            insert_idx = 0
+        else:
+            insert_idx = self.current_reg_idx + 1
+
+        self.img_region_lut[self.current_img_name].insert(
+            insert_idx,
+            {
+                'label': '',
+                'points': []
+            }
+        )
+        self.region_list_box.insert(insert_idx, '')
+        self.region_list_box.selection_clear(insert_idx - 1)
+        self.region_list_box.selection_set(insert_idx)
+        self.current_reg_idx = self.region_list_box.curselection()[0]
+        self.clear_drawn_regions()
+
     def delete_region(self):
         del self.img_region_lut[self.current_img_name][self.current_reg_idx]
         self.region_list_box.delete(self.current_reg_idx)
@@ -451,6 +470,10 @@ class Application(tk.Frame):
         region = self.img_region_lut[self.current_img_name][r_idx[0]]
 
         self.clear_drawn_regions()
+
+        if len(region['points']) == 0:
+            self.current_reg_idx = None
+            return
 
         for point in region['points']:
             e = tk.Event()
