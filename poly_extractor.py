@@ -105,6 +105,13 @@ class Application(tk.Frame):
         )
         add_region_button.pack(side=tk.RIGHT, anchor=tk.N)
 
+        new_label_button = ttk.Button(
+            file_chooser_button_frame,
+            text='Create New Label',
+            command=self.new_label
+        )
+        new_label_button.pack(side=tk.RIGHT, anchor=tk.N)
+
         file_chooser_button_frame.pack(
             anchor='n',
             fill='x',
@@ -343,6 +350,10 @@ class Application(tk.Frame):
 
     def new_region(self):
         label = self.current_label.get()
+        if label not in self.img_region_lut[self.current_img]:
+            self.img_region_lut[self.current_img][label] = []
+            self.current_reg_idx = 0
+
         count = len(self.img_region_lut[self.current_img][label])
         self.img_region_lut[self.current_img][label].append([])
         self.region_list_box.insert(tk.END, str(count + 1))
@@ -380,6 +391,51 @@ class Application(tk.Frame):
         self.canvas.delete("poly")
         self.canvas.delete("handle")
         self.points = OrderedDict()
+
+    def _new_label(self):
+        self.region_label_set.add(self.new_label_var.get())
+        self.label_option['values'] = sorted(self.region_label_set)
+
+    def new_label(self):
+        new_label_dialog = tk.Toplevel(self)
+        new_label_dialog.config(bg=BACKGROUND_COLOR)
+        new_label_dialog.wm_title("Create New Label")
+
+        self.new_label_var = tk.StringVar(self.master)
+        new_label_entry = ttk.Entry(
+            new_label_dialog,
+            textvariable=self.new_label_var
+        )
+        new_label_entry.pack(
+            side="top",
+            fill="both",
+            expand=True,
+            padx=PAD_MEDIUM,
+            pady=PAD_MEDIUM
+        )
+
+        cancel_button = ttk.Button(
+            new_label_dialog,
+            text='Cancel',
+            command=new_label_dialog.destroy
+        )
+        cancel_button.pack(
+            side=tk.RIGHT,
+            anchor=tk.N,
+            padx=PAD_SMALL,
+            pady=PAD_MEDIUM
+        )
+        confirm_button = ttk.Button(
+            new_label_dialog,
+            text='Create',
+            command=self._new_label
+        )
+        confirm_button.pack(
+            side=tk.RIGHT,
+            anchor=tk.N,
+            padx=PAD_SMALL,
+            pady=PAD_MEDIUM
+        )
 
     def load_regions_json(self, regions_file_path):
         # Each image set directory will have a 'regions.json' file. This regions
@@ -467,6 +523,7 @@ class Application(tk.Frame):
     def select_label(self, event):
         # clear the list box
         self.region_list_box.delete(0, tk.END)
+        self.clear_drawn_regions()
 
         label = self.current_label.get()
 
