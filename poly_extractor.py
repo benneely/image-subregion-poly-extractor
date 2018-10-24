@@ -84,6 +84,12 @@ class Application(tk.Frame):
             command=self.choose_files
         )
         file_chooser_button.pack(side=tk.LEFT)
+        add_image_button = ttk.Button(
+            file_chooser_button_frame,
+            text='Add Image',
+            command=self.choose_new_img_file
+        )
+        add_image_button.pack(side=tk.LEFT)
 
         save_regions_button = ttk.Button(
             file_chooser_button_frame,
@@ -563,6 +569,16 @@ class Application(tk.Frame):
         c_w = self.canvas.winfo_width() / 2
         self.canvas.xview_moveto((min_x - c_w) / self.image_dims[1])
         self.canvas.yview_moveto((min_y - c_h) / self.image_dims[0])
+
+    def choose_new_img_file(self):
+        selected_file = filedialog.askopenfile('r')
+
+        if selected_file is None:
+            return
+
+        image_name = os.path.basename(selected_file.name)
+        self.file_list_box.insert(tk.END, image_name)
+        self.img_region_lut[image_name] = {}
 
     def choose_files(self):
         self.clear_drawn_regions()
