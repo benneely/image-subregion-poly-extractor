@@ -20,7 +20,7 @@ ROW_ALT_COLOR = '#f3f6fa'
 
 HANDLE_RADIUS = 4  # not really a radius, just half a side length
 
-WINDOW_WIDTH = 860
+WINDOW_WIDTH = 890
 WINDOW_HEIGHT = 720
 
 PAD_SMALL = 2
@@ -34,10 +34,10 @@ class Application(tk.Frame):
         tk.Frame.__init__(self, master=master)
 
         self.img_region_lut = None
-        self.region_labels = None
+        self.region_label_set = None
         self.base_dir = None
         self.image_dims = None
-        self.current_img_name = None
+        self.current_img = None
         self.current_reg_idx = None
         self.tk_image = None
 
@@ -159,6 +159,16 @@ class Application(tk.Frame):
             padx=PAD_MEDIUM,
             pady=PAD_MEDIUM
         )
+
+        self.current_label = tk.StringVar(self.master)
+
+        self.label_option = ttk.Combobox(
+            region_list_frame,
+            textvariable=self.current_label,
+            state='readonly'
+        )
+        self.label_option.bind('<<ComboboxSelected>>', self.select_label)
+        self.label_option.pack(fill='x', expand=False)
 
         region_scroll_bar = ttk.Scrollbar(region_list_frame, orient='vertical')
         self.region_list_box = tk.Listbox(
@@ -282,9 +292,10 @@ class Application(tk.Frame):
 
         # update region lookup table
         new_points = np.array(list(self.points.values()), dtype=np.uint)
+        label = self.current_label.get()
         self.img_region_lut[
-            self.current_img_name
-        ][self.current_reg_idx]['points'] = new_points
+            self.current_img
+        ][label][self.current_reg_idx] = new_points
 
     def grab_handle(self, event):
         # button 1 was pressed so make sure canvas has focus
@@ -331,26 +342,18 @@ class Application(tk.Frame):
             self.draw_polygon()
 
     def new_region(self):
-        if self.current_reg_idx is None:
-            insert_idx = 0
-        else:
-            insert_idx = self.current_reg_idx + 1
-
-        self.img_region_lut[self.current_img_name].insert(
-            insert_idx,
-            {
-                'label': '',
-                'points': []
-            }
-        )
-        self.region_list_box.insert(insert_idx, '')
-        self.region_list_box.selection_clear(insert_idx - 1)
-        self.region_list_box.selection_set(insert_idx)
+        label = self.current_label.get()
+        count = len(self.img_region_lut[self.current_img][label])
+        self.img_region_lut[self.current_img][label].append([])
+        self.region_list_box.insert(tk.END, str(count + 1))
+        self.region_list_box.selection_clear(self.current_reg_idx)
+        self.region_list_box.selection_set(count)
         self.current_reg_idx = self.region_list_box.curselection()[0]
         self.clear_drawn_regions()
 
     def delete_region(self):
-        del self.img_region_lut[self.current_img_name][self.current_reg_idx]
+        label = self.current_label.get()
+        del self.img_region_lut[self.current_img][label][self.current_reg_idx]
         self.region_list_box.delete(self.current_reg_idx)
         self.current_reg_idx = None
         self.clear_drawn_regions()
@@ -393,27 +396,32 @@ class Application(tk.Frame):
         # polygon points dict is a numpy array.
         # The keys are the image names
         self.img_region_lut = {}
+        self.region_label_set = set()
 
         # clear the list box and the relevant file_list keys
         self.file_list_box.delete(0, tk.END)
+        self.region_list_box.delete(0, tk.END)
 
-        for image_name, sub_regions in regions_json.items():
+        for image_name, regions_dict in regions_json.items():
             self.file_list_box.insert(tk.END, image_name)
 
-            self.img_region_lut[image_name] = []
+            self.img_region_lut[image_name] = {}
 
-            for region in sub_regions:
-                points = np.empty((0, 2), dtype='int')
+            for label, regions in regions_dict.items():
+                self.region_label_set.add(label)
 
-                for point in region['points']:
-                    points = np.append(points, [[point[0], point[1]]], axis=0)
+                for region in regions:
+                    points = np.empty((0, 2), dtype='int')
 
-                self.img_region_lut[image_name].append(
-                    {
-                        'label': region['label'],
-                        'points': points
-                    }
-                )
+                    for point in region:
+                        points = np.append(points, [[point[0], point[1]]], axis=0)
+
+                    if label not in self.img_region_lut[image_name]:
+                        self.img_region_lut[image_name][label] = []
+
+                    self.img_region_lut[image_name][label].append(points)
+
+        self.label_option['values'] = sorted(self.region_label_set)
 
     def save_regions_json(self):
         save_file = filedialog.asksaveasfile(defaultextension=".json")
@@ -434,8 +442,8 @@ class Application(tk.Frame):
     # noinspection PyUnusedLocal
     def select_file(self, event):
         current_sel = self.file_list_box.curselection()
-        self.current_img_name = self.file_list_box.get(current_sel[0])
-        img_path = os.path.join(self.base_dir, self.current_img_name)
+        self.current_img = self.file_list_box.get(current_sel[0])
+        img_path = os.path.join(self.base_dir, self.current_img)
         cv_img = cv2.imread(img_path)
 
         image = PIL.Image.fromarray(
@@ -453,11 +461,20 @@ class Application(tk.Frame):
             image=self.tk_image
         )
 
+        self.select_label(event)
+
+    # noinspection PyUnusedLocal
+    def select_label(self, event):
         # clear the list box
         self.region_list_box.delete(0, tk.END)
 
-        for region in self.img_region_lut[self.current_img_name]:
-            self.region_list_box.insert(tk.END, region['label'])
+        label = self.current_label.get()
+
+        if label not in self.img_region_lut[self.current_img]:
+            return
+
+        for i, r in enumerate(self.img_region_lut[self.current_img][label]):
+            self.region_list_box.insert(tk.END, i + 1)
 
     # noinspection PyUnusedLocal
     def select_region(self, event):
@@ -467,21 +484,21 @@ class Application(tk.Frame):
             return
 
         self.current_reg_idx = r_idx[0]
-        region = self.img_region_lut[self.current_img_name][r_idx[0]]
+        label = self.current_label.get()
+        region = self.img_region_lut[self.current_img][label][r_idx[0]]
 
         self.clear_drawn_regions()
 
-        if len(region['points']) == 0:
-            self.current_reg_idx = None
+        if len(region) == 0:
             return
 
-        for point in region['points']:
+        for point in region:
             e = tk.Event()
             e.x, e.y = point
 
             self.draw_point(e, override_focus=True)
 
-        min_x, min_y, reg_w, reg_h = cv2.boundingRect(region['points'])
+        min_x, min_y, reg_w, reg_h = cv2.boundingRect(region)
         min_x = min_x + (reg_w / 2.0)
         min_y = min_y + (reg_h / 2.0)
 
