@@ -40,6 +40,7 @@ class Application(tk.Frame):
         self.current_img = None
         self.current_reg_idx = None
         self.tk_image = None
+        self.new_label_var = tk.StringVar(self.master)
 
         self.master.minsize(width=WINDOW_WIDTH, height=WINDOW_HEIGHT)
         self.master.config(bg=BACKGROUND_COLOR)
@@ -401,7 +402,6 @@ class Application(tk.Frame):
         new_label_dialog.config(bg=BACKGROUND_COLOR)
         new_label_dialog.wm_title("Create New Label")
 
-        self.new_label_var = tk.StringVar(self.master)
         new_label_entry = ttk.Entry(
             new_label_dialog,
             textvariable=self.new_label_var
